@@ -19,22 +19,22 @@ Produces `bin/mega65fs`.
 
 ## Usage
 
-    ./bin/mega65fs /mnt/mega65 -f
+    ./bin/mega65fs /your/mountpoint -f
 
 Foreground (`-f`) is recommended so you can see diagnostics.  The first
 connection attempt to the MEGA65 appears in the output.
 
 When the filesystem is no longer needed, unmount with:
 
-    fusermount -u /mnt/mega65
+    fusermount -u /your/mountpoint
 
-### Defrag utility
+### Defrag utility. 
+
+**Deprecated, will move out of this project!**
 
     ./bin/mega65fs --defrag [path]
 
 Scans the SD card and rewrites fragmented files into contiguous clusters.
-This is run automatically when files are written through the FUSE mount
-(writeback buffering ensures newly created files are always contiguous).
 
 ### Notes
 
@@ -46,6 +46,14 @@ This is run automatically when files are written through the FUSE mount
 
 ## License
 
-The MEGA65-FTP library (`libm65ftp/`) is developed as part of the
+The MEGA65-FTP library (`lib/libm65ftp/`) is developed as part of the
 [MEGA65](https://mega65.org) project.  This FUSE wrapper is distributed
 under the same terms as the MEGA65 tools.
+
+## Disclaimer
+
+**USE AT YOUR OWN RISK.** This tool modifies the FAT32 filesystem on your
+SD card. While it has been tested, there is always a risk of data loss or
+corruption. The author makes no warranties and accepts no responsibility
+for any damage or data loss that may occur. Back up your SD card before
+use.

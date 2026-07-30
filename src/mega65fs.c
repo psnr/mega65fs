@@ -13,7 +13,7 @@
 #include <pthread.h>
 #include <signal.h>
 
-#include "../libm65ftp/m65ftp_lib.h"
+#include "m65ftp_lib.h"
 
 #define ANSI_RED    "\033[31m"
 #define ANSI_GREEN  "\033[32m"
@@ -72,6 +72,9 @@ struct fill_ctx {
 };
 
 static int fill_dir_cache(const char *name, unsigned int file_size, int is_dir, time_t mtime, void *ctx) {
+    // Skip '.' and '..' so they don't get duplicated in readdir
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) 
+        return 0; 
     struct fill_ctx *fc = (struct fill_ctx *)ctx;
     if (fc->cache->entry_count >= MAX_ENTRIES)
         return 1;
@@ -204,6 +207,8 @@ static int fs_getattr(const char *path, struct stat *stbuf, struct fuse_file_inf
     if (strcmp(path, "/") == 0) {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
+        stbuf->st_size = 4096;
+        stbuf->st_blocks = 8;
         return 0;
     }
 
@@ -225,10 +230,12 @@ static int fs_getattr(const char *path, struct stat *stbuf, struct fuse_file_inf
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
         stbuf->st_size = 4096;
+        stbuf->st_blocks = 8;
     } else {
         stbuf->st_mode = S_IFREG | 0644;
         stbuf->st_nlink = 1;
         stbuf->st_size = file_size;
+        stbuf->st_blocks = (stbuf->st_size + 511) / 512;
     }
     stbuf->st_atim.tv_sec = mtime;
     stbuf->st_mtim.tv_sec = mtime;
@@ -252,7 +259,7 @@ static int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     st_dot.st_nlink = 2;
     st_ddot.st_mode = S_IFDIR | 0755;
     st_ddot.st_nlink = 2;
-
+    
     off_t pos = 0;
 
     if (pos >= offset)
@@ -275,6 +282,7 @@ static int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             st.st_nlink = cache->entries[i].is_dir ? 2 : 1;
             st.st_size = cache->entries[i].size;
             st.st_mtim.tv_sec = cache->entries[i].mtime;
+            st.st_blocks = (st.st_size + 511) / 512;
 
             if (filler(buf, cache->entries[i].name, &st, pos + 1, 0) != 0) break;
         }
@@ -390,6 +398,52 @@ static int fs_unlink(const char *path) {
     return 0;
 }
 
+static int fs_statfs(const char *path, struct statvfs *stbuf) {
+    (void)path;
+    memset(stbuf, 0, sizeof(struct statvfs));
+    
+    stbuf->f_frsize = 4096;
+    stbuf->f_bsize  = 4096;
+    
+    struct m65ftp_partition parts[4];
+    unsigned long long total_bytes = 13782993408ULL; // Fallback (~13.78 GB)
+    
+    if (m65ftp_mbrinfo(parts) > 0) {
+        // Use Partition 0 sector count * 512 bytes per sector
+        total_bytes = (unsigned long long)parts[0].sector_count * 512ULL;
+    }
+    
+    fsblkcnt_t total_blocks = total_bytes / 4096;
+    
+    unsigned long long total_used_bytes = 0;
+    for (int i = 0; i < MAX_CACHED_DIRS; i++) {
+        if (g_cache_slots[i].valid) {
+            for (int j = 0; j < g_cache_slots[i].entry_count; j++) {
+                if (g_cache_slots[i].entries[j].valid) {
+                    total_used_bytes += g_cache_slots[i].entries[j].size;
+                }
+            }
+        }
+    }
+
+    fsblkcnt_t used_blocks = (total_used_bytes + 4095) / 4096;
+    fsblkcnt_t free_blocks = (total_blocks > used_blocks) ? (total_blocks - used_blocks) : 0;
+
+    stbuf->f_blocks = total_blocks;
+    stbuf->f_bfree  = free_blocks;
+    stbuf->f_bavail = free_blocks;
+    stbuf->f_files  = 65535;
+    stbuf->f_ffree  = 60000;
+    stbuf->f_namemax = 255;
+
+    return 0;
+}
+
+/* ========================================================================= *
+ * END OF FUSE CALLBACK IMPLEMENTATIONS                                      *
+ * ========================================================================= */
+
+
 static struct fuse_operations fs_oper = {
     .init     = fs_init,
     .destroy  = fs_destroy,
@@ -405,6 +459,7 @@ static struct fuse_operations fs_oper = {
     .mkdir    = fs_mkdir,
     .rmdir    = fs_rmdir,
     .unlink   = fs_unlink,
+    .statfs   = fs_statfs,
 };
 
 #define SCAN_MAX_DEPTH 32

@@ -4,6 +4,14 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+struct m65ftp_partition {
+    unsigned int start_sector;
+    unsigned int sector_count;
+    unsigned char type;
+};
+
+int m65ftp_mbrinfo(struct m65ftp_partition partitions[4]);
+
 int m65ftp_init(void);
 void m65ftp_finish(void);
 int m65ftp_is_connected(void);

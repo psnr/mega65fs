@@ -1,5 +1,12 @@
 #define M65FTP_AS_LIB
-#include "mega65_ftp.c"
+
+#include "../lib/libm65ftp/mega65_ftp.c"
+
+struct m65ftp_partition {
+    unsigned int start_sector;
+    unsigned int sector_count;
+    unsigned char type;
+};
 
 #include <stddef.h>
 #include <pthread.h>
@@ -1401,4 +1408,55 @@ int m65ftp_readdir(const char *path,
     }
     pthread_mutex_unlock(&g_m65ftp_mutex);
     return 0;
+}
+
+int m65ftp_mbrinfo(struct m65ftp_partition partitions[4])
+{
+    pthread_mutex_lock(&g_m65ftp_mutex);
+    if (!m65ftp_initialized) {
+        pthread_mutex_unlock(&g_m65ftp_mutex);
+        return -1;
+    }
+
+    unsigned char mbr[512];
+    // MBR is always at absolute sector 0 on the SD card
+    if (read_sector(0, mbr, CACHE_NO, 0) != 0) {
+        pthread_mutex_unlock(&g_m65ftp_mutex);
+        return -1;
+    }
+
+    // Check MBR signature 0x55AA at offset 510-511
+    if (mbr[510] != 0x55 || mbr[511] != 0xAA) {
+        pthread_mutex_unlock(&g_m65ftp_mutex);
+        return -1;
+    }
+
+    int count = 0;
+    // MBR partition table starts at offset 0x1BE (4 entries of 16 bytes)
+    for (int i = 0; i < 4; i++) {
+        int base = 0x1BE + (i * 16);
+        unsigned char type = mbr[base + 4];
+        
+        // Little-endian 32-bit integers for start LBA and sector count
+        unsigned int start_lba = mbr[base + 8] | 
+                                 (mbr[base + 9] << 8) | 
+                                 (mbr[base + 10] << 16) | 
+                                 (mbr[base + 11] << 24);
+                                 
+        unsigned int sectors = mbr[base + 12] | 
+                               (mbr[base + 13] << 8) | 
+                               (mbr[base + 14] << 16) | 
+                               (mbr[base + 15] << 24);
+
+        partitions[i].type = type;
+        partitions[i].start_sector = start_lba;
+        partitions[i].sector_count = sectors;
+
+        if (type != 0 && sectors > 0) {
+            count++;
+        }
+    }
+
+    pthread_mutex_unlock(&g_m65ftp_mutex);
+    return count;
 }
