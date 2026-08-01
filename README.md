@@ -47,9 +47,10 @@ When the filesystem is no longer needed, unmount with:
 
 ## License
 
-The MEGA65-FTP library (`lib/libm65ftp/`) is developed as part of the
-[MEGA65](https://mega65.org) project.  This FUSE wrapper is distributed
-under the same terms as the MEGA65 tools.
+GPL-3.0 (see [`LICENSE`](LICENSE)). The MEGA65-FTP library
+(`lib/libm65ftp/`), vendored from the [MEGA65](https://mega65.org) tools
+project, is GPL-3.0 licensed; since it is statically linked into this
+FUSE wrapper, the combined binary is distributed under the same terms.
 
 ## Disclaimer
 
