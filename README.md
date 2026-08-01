@@ -4,6 +4,9 @@ Mount a MEGA65's SD card as a local directory via ethernet (ETHLOAD.M65
 must be running on the machine).  Uses the MEGA65-FTP protocol to talk to
 the MEGA65's built-in FTP-over-ethernet loader.
 
+**Linux only.** This filesystem driver requires FUSE 3 and `fusermount`,
+so it cannot be built or run on macOS or Windows.
+
 ## Dependencies
 
 - FUSE 3.x (`libfuse3-dev` / `fuse3`)
@@ -28,14 +31,6 @@ When the filesystem is no longer needed, unmount with:
 
     fusermount -u /your/mountpoint
 
-### Defrag utility. 
-
-**Deprecated, will move out of this project!**
-
-    ./bin/mega65fs --defrag [path]
-
-Scans the SD card and rewrites fragmented files into contiguous clusters.
-
 ### Notes
 
 - All file operations are single-threaded (FUSE `-s` equivalent) — the
@@ -43,6 +38,12 @@ Scans the SD card and rewrites fragmented files into contiguous clusters.
 - Directory listing is cached for 5 seconds.
 - Writeback buffering: new files are accumulated in host memory and
   written to the SD card as one contiguous block when closed.
+
+## Screenshots
+
+![MEGA65 SD card mounted in Nemo](doc/mega65fs_nemo.png)
+
+![MEGA65 SD card in the terminal](doc/mega65fs_term.png)
 
 ## License
 
